@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STL Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <div class="top-bar">
+        <nav id="shape-nav" class="shape-nav" aria-label="Object type"></nav>
+        <button id="reset" type="button" class="reset">Reset</button>
+      </div>
+
+      <aside class="controls">
+        <div id="param-controls" class="param-controls"></div>
+      </aside>
+
+      <div id="viewport" class="viewport" aria-label="3D model preview"></div>
+
+      <button id="download" type="button" class="download">
+        Download STL
+      </button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
