@@ -101,39 +101,58 @@ Invalid typed values are rejected and the field reverts to the last valid number
 
 ## Architecture
 
+The app is a static Vite page with no server. `index.html` mounts four DOM slots (`#shape-nav`, `#param-controls`, `#viewport`, `#download` / `#reset`). `src/main.ts` is the only place that wires those slots to the rest of the code.
+
 ```
-src/
-  main.ts           Wire-up: nav, preview, download, reset
-  preview.ts        Three.js scene, orbit controls, live mesh rebuild
-  ui.ts             Shape tabs + param panel (range / toggle)
-  style.css         UI layout and theme
-  shapes/
-    types.ts        ShapeDefinition and ParamField contracts
-    index.ts        Registry (tab order = array order)
-    l-bracket.ts
-    u-bracket.ts
-    hook.ts
-    box.ts
-    pipe.ts
+index.html
+    └── src/main.ts          session glue (nav, params, reset, STL download)
+            ├── ui.ts        builds tabs and the param form from a ShapeDefinition
+            ├── preview.ts   owns the Three.js scene and the live mesh
+            └── shapes/      registry + one file per printable object
 ```
+
+### Layers
+
+| Layer | File | Responsibility |
+|-------|------|----------------|
+| Shell | `index.html`, `style.css` | Layout: top tabs, left controls, viewport, download button |
+| Session | `main.ts` | Holds the preview instance; re-renders UI after shape/param/reset; exports binary STL from the current mesh |
+| View | `ui.ts` | Pure DOM: shape tabs and range/toggle controls. Does not keep param state |
+| Scene | `preview.ts` | Camera, lights, 800 mm grid, orbit controls. **Source of truth** for the active shape and param map |
+| Catalog | `shapes/*` | Geometry and control metadata. Preview and UI never hard-code object types |
+
+Param values live only in `ModelPreview`. The UI reads them to paint controls and writes them back through `preview.setParam`. Switching tabs calls `preview.setShape`, which loads that shape’s defaults (then `normalizeParams` if present).
+
+### Edit → mesh → STL
+
+1. User changes a control → `ui.ts` calls `preview.setParam(key, value)`.
+2. `setParam` optionally runs `applyParamChange` (linked fields, e.g. equal box sides), then `normalizeParams` (clamps, e.g. inner radius &lt; outer).
+3. `rebuildMesh` disposes the old geometry, calls `shape.createGeometry(params)`, then `orientMesh` / `groundOffset` so the part sits on the grid.
+4. **Download STL** uses Three.js `STLExporter` on that mesh (world matrix applied). Filename comes from `shape.fileName(params)`. The grid is never exported.
 
 ### Shape registry
 
-Each printable object is a `ShapeDefinition`:
+Each object is a `ShapeDefinition` (`src/shapes/types.ts`):
 
-- `defaults` / `params` — UI controls (range or toggle)
-- `createGeometry(params)` — returns a `THREE.BufferGeometry` in mm
-- `normalizeParams` — clamp interdependent values after edits
-- `applyParamChange` — optional linked updates (e.g. equal sizes)
-- `orientMesh` / `groundOffset` — how the mesh sits on the grid
-- `fileName(params)` — STL download name
+| Field | Role |
+|-------|------|
+| `id` / `label` | Tab identity and display name |
+| `defaults` | Starting param map (all numbers; toggles are `0` or `1`) |
+| `params` | Control list the UI renders |
+| `createGeometry` | Build `THREE.BufferGeometry` in millimeters |
+| `normalizeParams` | Clamp interdependent values after any edit |
+| `applyParamChange` | Optional: one key change updates other keys |
+| `orientMesh` / `groundOffset` | How the mesh sits on the print-bed grid |
+| `fileName` | STL download name |
 
-Register new shapes in `src/shapes/index.ts`. The UI, preview, and export pick them up automatically.
+Register new objects in `src/shapes/index.ts` (`shapes` array order = tab order). Add a file under `shapes/`, export a `ShapeDefinition`, and append it to that array. Nav, sliders, preview, and export pick it up with no changes to `main.ts`.
 
 ### Controls
 
-- **Range**: slider + editable number; optional `dynamicMax`, `visibleWhen`, `disabledWhen`
-- **Toggle**: stored as `0` | `1` in the param map
+- **Range**: slider + typed number; optional `dynamicMax`, `visibleWhen`, `disabledWhen`
+- **Toggle**: stored as `0` | `1` in the same param map as ranges
+
+Invalid typed numbers are rejected in the UI and the field reverts. Disabled/hidden controls stay in the param map; they just are not editable.
 
 ## Stack
 
